@@ -245,6 +245,19 @@ Result CreateRateBumpTransaction(CWallet& wallet, const uint256& txid, const CCo
         }
     }
 
+    // If no recipients, means that we are sending coins to a change address
+    if (recipients.empty()) {
+        // Just as a sanity check, ensure that the change address exist
+        if (std::get_if<CNoDestination>(&new_coin_control.destChange)) {
+            errors.emplace_back(Untranslated("Unable to create transaction. Transaction must have at least one recipient"));
+            return Result::INVALID_PARAMETER;
+        }
+
+        // Add change as recipient with SFFO flag enabled, so fees are deduced from it and no other output is created.
+        recipients.emplace_back(CRecipient{GetScriptForDestination(new_coin_control.destChange), output_value, /*fSubtractFeeFromAmount=*/true});
+        new_coin_control.destChange = CNoDestination();
+    }
+
     if (coin_control.m_feerate) {
         // The user provided a feeRate argument.
         // We calculate this here to avoid compiler warning on the cs_wallet lock
